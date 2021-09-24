@@ -179,7 +179,7 @@ function exponent(a::MPoly{T}, i::Int, j::Int) where T <: RingElement
    return exponent(a, i, j, Val{parent(a).ord})
 end
 
-function set_exponent_vector!(a::MPoly{T}, i::Int, exps::Vector{Int}, ::Type{Val{:lex}}) where T <: RingElement
+function set_exponent_vector!(a, i::Int, exps, ::Type{Val{:lex}}) where T <: RingElement
    fit!(a, i)
    A = a.exps
    A[:, i] = exps[end:-1:1]
@@ -189,7 +189,7 @@ function set_exponent_vector!(a::MPoly{T}, i::Int, exps::Vector{Int}, ::Type{Val
    return a
 end
 
-function set_exponent_vector!(a::MPoly{T}, i::Int, exps::Vector{Int}, ::Type{Val{:deglex}}) where T <: RingElement
+function set_exponent_vector!(a, i::Int, exps, ::Type{Val{:deglex}}) where T <: RingElement
    fit!(a, i)
    A = a.exps
    A[1:end - 1, i] = exps[end:-1:1]
@@ -200,7 +200,7 @@ function set_exponent_vector!(a::MPoly{T}, i::Int, exps::Vector{Int}, ::Type{Val
    return a
 end
 
-function set_exponent_vector!(a::MPoly{T}, i::Int, exps::Vector{Int}, ::Type{Val{:degrevlex}}) where T <: RingElement
+function set_exponent_vector!(a, i::Int, exps, ::Type{Val{:degrevlex}}) where T <: RingElement
    fit!(a, i)
    A = a.exps
    A[1:end - 1, i] = exps
@@ -218,7 +218,7 @@ Set the i-th exponent vector to the supplied vector, where the entries
 correspond to the exponents of the variables in the order supplied when
 the ring was created. The modified polynomial is returned.
 """
-function set_exponent_vector!(a::MPoly{T}, i::Int, exps::Vector{Int}) where T <: RingElement
+function set_exponent_vector!(a::MPoly{T}, i::Int, exps) where T <: RingElement
    return set_exponent_vector!(a, i, exps, Val{parent(a).ord})
 end
 
@@ -268,7 +268,7 @@ value $c$. This function takes $O(\log n)$ operations if a term with the given
 exponent already exists, or if the term is inserted at the end of the
 polynomial. Otherwise it can take $O(n)$ operations in the worst case.
 """
-function setcoeff!(a::MPoly, exps::Vector{Int}, c::S) where S <: RingElement
+function setcoeff!(a::MPoly, exps, c::S) where S <: RingElement
    c = base_ring(a)(c)
    A = a.exps
    N = size(A, 1)
@@ -3853,7 +3853,7 @@ function show(io::IO, M::MPolyBuildCtx)
    print(iocomp, "Builder for a polynomial in ", parent(M.poly))
 end
 
-function push_term!(M::MPolyBuildCtx{T}, c::S, expv::Vector{Int}) where {T, S}
+function push_term!(M::MPolyBuildCtx{T}, c::S, expv) where {T, S}
    if iszero(c)
       return M
    end
@@ -4056,7 +4056,7 @@ end
 # This is the main user interface for efficiently creating a polynomial. It accepts
 # an array of coefficients and an array of exponent vectors. Sorting, coalescing of
 # like terms and removal of zero terms is performed.
-function (a::MPolyRing{T})(b::Vector{T}, m::Vector{Vector{Int}}) where {T <: RingElement}
+function (a::MPolyRing{T})(b::Vector{T}, m) where {T <: RingElement}
    if length(b) > 0 && isassigned(b, 1)
        parent(b[1]) != base_ring(a) && error("Unable to coerce to polynomial")
    end
