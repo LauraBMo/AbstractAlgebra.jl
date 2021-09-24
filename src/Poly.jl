@@ -5,19 +5,19 @@
 ###############################################################################
 
 export PolyCoeffs, PolynomialRing, PolyRing, addmul!, characteristic,
-       chebyshev_t, chebyshev_u, coefficient_ring, coefficients, compose,
-       constant_coefficient, content, deflate, deflation, degree, derivative,
-       discriminant, divexact, divexact_low, divhigh, divides, evaluate,
-       gcdinv, inflate, integral, interpolate, ismonic, issquare, isterm,
-       isterm_recursive, map_coefficients, modulus,  monomial_to_newton!,
-       mul_classical, mulhigh_n, mul_karatsuba, mul_ks, mullow, mulmod,
-       newton_to_monomial!, nvars, polynomial, polynomial_to_power_sums,
-       power_sums_to_polynomial, pow_multinomial, primpart,
-       pseudodivrem, pseudorem, remove, resultant, resultant_ducos,
-       resultant_euclidean, resultant_lehmer, resultant_subresultant,
-       resultant_sylvester, resx, shift_left, shift_right, subst,
-       sylvester_matrix, symbols, tail, use_karamul, valuation, var,
-       set_coefficient!
+    chebyshev_t, chebyshev_u, coefficient_ring, coefficients, compose,
+    constant_coefficient, content, deflate, deflation, degree, derivative,
+    discriminant, divexact, divexact_low, divhigh, divides, evaluate,
+    gcdinv, inflate, integral, interpolate, ismonic, issquare, isterm,
+    isterm_recursive, map_coefficients, modulus,  monomial_to_newton!,
+    mul_classical, mulhigh_n, mul_karatsuba, mul_ks, mullow, mulmod,
+    newton_to_monomial!, nvars, polynomial, polynomial_to_power_sums,
+    power_sums_to_polynomial, pow_multinomial, primpart,
+    pseudodivrem, pseudorem, remove, resultant, resultant_ducos, subresultants_ducos,
+    resultant_euclidean, resultant_lehmer, resultant_subresultant, subresultants_subresultant,
+    resultant_sylvester, resx, shift_left, shift_right, subst,
+    sylvester_matrix, symbols, tail, use_karamul, valuation, var,
+    set_coefficient!
 
 ###############################################################################
 #
@@ -2201,181 +2201,338 @@ end
 Return the resultant of the $p$ and $q$.
 """
 function resultant_ducos(p::PolyElem{T}, q::PolyElem{T}) where T <: RingElement
-   # See the paper, "Optimizations of the subresultant algorithm" by Lionel
-   # Ducos, J. Pure and Appl. Algebra 2000.
-   check_parent(p, q)
-   if length(p) == 0 || length(q) == 0
-      return zero(base_ring(p))
-   end
-   sgn = 1
-   if length(p) < length(q)
-      p, q = q, p
-      if iseven(length(p)) && iseven(length(q))
-         sgn = -sgn
-      end
-   end
-   lp = length(p)
-   lq = length(q)
-   if lq == 1
-      return coeff(q, 0)^(lp - 1)
-   end
-   c1 = content(p)
-   c2 = content(q)
-   p = divexact(p, c1)
-   q = divexact(q, c2)
-   sd = leading_coefficient(q)^(lp - lq)
-   Sd0 = parent(p)()
-   A = q
-   B = pseudorem(p, -A)
-   while true
-      d1 = length(A)
-      e1 = length(B)
-      if e1 == 0
-         return zero(base_ring(p))
-      end
-      Sd1 = B
-      delta = d1 - e1
-      if delta > 1
-         if length(Sd0) == 0
-            C = divexact(leading_coefficient(B)^(delta - 1)*B, sd^(delta - 1))
-         else
-            C = subresultant_lazard(Sd0, Sd1)
-         end
-      else
-         C = B
-      end
-      if e1 == 1
-         return coeff(C, 0)*c1^(lq - 1)*c2^(lp - 1)*sgn
-      end
-      B = subresultant_ducos(A, Sd1, C, sd)
-      Sd0 = C
-      Sd1 = B
-      A = C
-      sd = leading_coefficient(A)
-   end
+    # See the paper, "Optimizations of the subresultant algorithm" by Lionel
+    # Ducos, J. Pure and Appl. Algebra 2000.
+    check_parent(p, q)
+    if length(p) == 0 || length(q) == 0
+        @debug "Exit by lp or lq == 0 at iteration\n"
+        return zero(base_ring(p))
+    end
+    sgn = 1
+    if length(p) < length(q)
+        p, q = q, p
+        if iseven(length(p)) && iseven(length(q))
+            sgn = -sgn
+        end
+    end
+    lp = length(p)
+    lq = length(q)
+    if lq == 1
+        @debug "Exit by lq == 1 (with lq <= lp) at iteration\n"
+        return coeff(q, 0)^(lp - 1)
+    end
+    c1 = content(p)
+    c2 = content(q)
+    p = divexact(p, c1)
+    q = divexact(q, c2)
+    sd = leading_coefficient(q)^(lp - lq)
+    Sd0 = parent(p)()
+    A = q
+    B = pseudorem(p, -A)
+    while true
+        d1 = length(A)
+        e1 = length(B)
+        if e1 == 0
+            @debug "Exit by e1 == 0 at iteration\n"
+            return zero(base_ring(p))
+        end
+        Sd1 = B
+        delta = d1 - e1
+        if delta > 1
+            if length(Sd0) == 0
+                C = divexact(leading_coefficient(B)^(delta - 1) * B, sd^(delta - 1))
+            else
+                C = subresultant_lazard(Sd0, Sd1)
+            end
+        else
+            C = B
+        end
+        if e1 == 1
+            @debug "Exit by e1 == 1 at iteration\n"
+            return coeff(C, 0) * c1^(lq - 1) * c2^(lp - 1) * sgn
+        end
+        B = subresultant_ducos(A, Sd1, C, sd)
+        Sd0 = C
+        Sd1 = B
+        A = C
+        sd = leading_coefficient(A)
+    end
+end
+
+function setpoly_resultant(p, q)
+    @debug "Let's start setting the polys"
+    check_parent(p, q)
+    sgn = 1
+    if length(p) < length(q)
+        p, q = q, p # Ensure deg(q) < deg(p)
+        if iseven(length(p)) && iseven(length(q))
+            sgn = -sgn
+        end
+    end
+    return length(p), length(q), sgn
+end
+
+
+@doc Markdown.doc"""
+    subresultants_ducos(p::PolyElem{T}, q::PolyElem{T}) where T <: RingElement
+
+Same as `resultant_ducos` but returns the whole chain of subresultants of $p$ and $q$.
+"""
+function subresultants_ducos(p, q)
+    # See the paper, "Optimizations of the subresultant algorithm" by Lionel
+    # Ducos, J. Pure and Appl. Algebra 2000.
+    check_parent(p, q)
+    if length(p) == 0 || length(q) == 0
+        @debug "Exit by lp or lq == 0 at iteration\n"
+        return [zero(base_ring(p))]
+    end
+    sgn = 1
+    if length(p) < length(q)
+        p, q = q, p
+        if iseven(length(p)) && iseven(length(q))
+            sgn = -sgn
+        end
+    end
+    lp = length(p)
+    lq = length(q)
+    if lq == 1
+        @debug "Exit by lq == 1 (with lq <= lp) at iteration\n"
+        return [coeff(q, 0)^(lp - 1)]
+    end
+    @debug "Let's define S, where lp, lq: $(lp) $(lq)\n "
+    S = zeros(parent(p), lq - 1)
+    i_S = 1
+    c1 = content(p)
+    c2 = content(q)
+    @debug "Contents p,q: $(c1), $(c2)"
+    # B = divexact(p, c1)
+    # A = divexact(q, c2)
+    # # Do not normalize
+    B = p
+    A = q
+    @debug "Polys A,B: $(A), $(B)"
+    sd = lead(q)^(lp - lq)
+    Sd0 = parent(p)()
+    # A = q
+    B = pseudorem(B, -A)
+    # For debug
+    i = 1
+    while true
+        # println(sd, A, B, Sd0)
+        d1 = length(A)
+        e1 = length(B)
+        if e1 == 0
+            @debug "Exit by e1 == 0 at $i-th iteration, lq=$(lq), lp=$(lp)\n"
+            # S = vcat(S, zeros(base_ring(p), lq - length(S) - 1))
+            return S
+        end
+        S[i_S] = B
+        i_S += 1
+        # push!(S, B)
+        Sd1 = B
+        delta = d1 - e1
+        if delta > 1
+            @debug "Delta > 1 executed"
+            if length(Sd0) == 0
+                C = divexact(lead(B)^(delta - 1) * B, sd^(delta - 1))
+            else
+                C = subresultant_lazard(Sd0, Sd1)
+            end
+            # push!(S, C)
+            S[i_S] = C
+            i_S += 1
+        else
+            C = B
+        end
+        if e1 == 1
+            @debug "Exit by e1 == 1 at $i-th iteration\n"
+            # S[end] = parent(p)(coeff(C, 0) * c1^(lq - 1) * c2^(lp - 1) * sgn)
+            # S[end] = base_ring(p)(B)
+            # push!(S, coeff(C, 0)*c1^(lq - 1)*c2^(lp - 1)*sgn)
+            # @debug "C $C, c1 $(c1), c2 $(c2)"
+            return S
+            # return coeff(C, 0)*c1^(lq - 1)*c2^(lp - 1)*sgn
+            # return C*c1^(lq - 1)*c2^(lp - 1)*sgn
+        end
+        B = subresultant_ducos(A, Sd1, C, sd)
+        Sd0 = C
+        Sd1 = B
+        A = C
+        sd = lead(A)
+        i += 1
+    end
 end
 
 # details can be found in, "Optimizations of the subresultant algorithm" by
 # Lionel Ducos, J. Pure and Appl. Algebra 2000. Note, the resultant is
 # the constant coefficient of S_0 (aka S_00 in other sources)
 function resultant_subresultant(p::PolyElem{T}, q::PolyElem{T}) where T <: RingElement
-   check_parent(p, q)
-   if length(p) == 0 || length(q) == 0
-      return zero(base_ring(p))
-   end
-   sgn = 1
-   if length(p) < length(q)
-      p, q = q, p
-      if iseven(length(p)) && iseven(length(q))
-         sgn = -sgn
-      end
-   end
-   lp = length(p)
-   lq = length(q)
-   if lq == 1
-      return coeff(q, 0)^(lp - 1)
-   end
-   s = leading_coefficient(q)^(lp - lq)
-   S = parent(p)()
-   A = q
-   B = pseudorem(p, -q)
-   while true
-      d1 = length(A)
-      e1 = length(B)
-      if e1 == 0
-         return zero(base_ring(p))
-      end
-      S = B
-      delta = d1 - e1
-      if delta > 1
-         C = divexact(leading_coefficient(B)^(delta - 1)*B, s^(delta - 1))
-         S = C
-      else
-         C = B
-      end
-      if e1 == 1
-         return coeff(S, 0)*sgn
-      end
-      B = divexact(pseudorem(A, -B), s^delta*leading_coefficient(A))
-      A = C
-      s = leading_coefficient(A)
-   end
+    check_parent(p, q)
+    if length(p) == 0 || length(q) == 0
+        return zero(base_ring(p))
+    end
+    sgn = 1
+    if length(p) < length(q)
+        p, q = q, p
+        if iseven(length(p)) && iseven(length(q))
+            sgn = -sgn
+        end
+    end
+    lp = length(p)
+    lq = length(q)
+    if lq == 1
+        return coeff(q, 0)^(lp - 1)
+    end
+    s = leading_coefficient(q)^(lp - lq)
+    S = parent(p)()
+    A = q
+    B = pseudorem(p, -q)
+    while true
+        d1 = length(A)
+        e1 = length(B)
+        if e1 == 0
+            return zero(base_ring(p))
+        end
+        S = B
+        delta = d1 - e1
+        if delta > 1
+            C = divexact(leading_coefficient(B)^(delta - 1) * B, s^(delta - 1))
+            S = C
+        else
+            C = B
+        end
+        if e1 == 1
+            return coeff(S, 0) * sgn
+        end
+        B = divexact(pseudorem(A, -B), s^delta * leading_coefficient(A))
+        A = C
+        s = leading_coefficient(A)
+    end
 end
 
-function resultant_lehmer(a::PolyElem{T}, b::PolyElem{T}) where {T <: Union{ResElem, FieldElement}}
-   local crossover = 40
-   R = base_ring(a)
-   check_parent(a, b)
-   if length(a) == 0 || length(b) == 0
-      return zero(base_ring(a))
-   end
-   sgn = 1
-   if length(a) < length(b)
-      a, b = b, a
-      if iseven(length(a)) && iseven(length(b))
-         sgn = -sgn
-      end
-   end
-   lA = lenA = length(a)
-   lB = lenB = length(b)
-   if lenB == 1
-      return coeff(b, 0)^(lA - 1)
-   end
-   c1 = content(a)
-   c2 = content(b)
-   A = divexact(a, c1)
-   B = divexact(b, c2)
-   s = one(R)
-   while lenB > crossover/2 + 1
-      shift = max(lenA - crossover, 0)
-      a = shift_right(A, shift)
-      b = shift_right(B, shift)
-      u1, v1 = one(R), zero(R)
-      u2, v2 = zero(R), one(R)
-      lena = lenA - shift
-      lenb = lenB - shift
-      if lenb > crossover/2 + 1
-         A = truncate(A, shift)
-         B = truncate(B, shift)
-         while lenb > crossover/2 + 1
-            if iseven(lena + shift) && iseven(lenb + shift)
-               sgn = -sgn
+function subresultants_subresultant(p::PolyElem{T}, q::PolyElem{T}) where T <: RingElement
+    check_parent(p, q)
+    if length(p) == 0 || length(q) == 0
+        return [zero(base_ring(p))]
+    end
+    sgn = 1
+    if length(p) < length(q)
+        p, q = q, p
+        if iseven(length(p)) && iseven(length(q))
+            sgn = -sgn
+        end
+    end
+    lp = length(p)
+    lq = length(q)
+    if lq == 1
+        return [coeff(q, 0)^(lp - 1)]
+    end
+    S = zeros(parent(p), lq - 1)
+    i_S = 1
+    s = leading_coefficient(q)^(lp - lq)
+    S = parent(p)()
+    A = q
+    B = pseudorem(p, -q)
+    while true
+        d1 = length(A)
+        e1 = length(B)
+        if e1 == 0
+            return [zero(base_ring(p))]
+        end
+        S[i_S] = B
+        i_S += 1
+        delta = d1 - e1
+        if delta > 1
+            C = divexact(leading_coefficient(B)^(delta - 1) * B, s^(delta - 1))
+            S[i_S] = C
+            i_S += 1
+        else
+            C = B
+        end
+        if e1 == 1
+            # return coeff(S, 0) * sgn
+            return S
+        end
+        B = divexact(pseudorem(A, -B), s^delta * leading_coefficient(A))
+        A = C
+        s = leading_coefficient(A)
+    end
+end
+
+function resultant_lehmer(a::PolyElem{T}, b::PolyElem{T}) where {T <: Union{ResElem,FieldElement}}
+    local crossover = 40
+    R = base_ring(a)
+    check_parent(a, b)
+    if length(a) == 0 || length(b) == 0
+        return zero(base_ring(a))
+    end
+    sgn = 1
+    if length(a) < length(b)
+        a, b = b, a
+        if iseven(length(a)) && iseven(length(b))
+            sgn = -sgn
+        end
+    end
+    lA = lenA = length(a)
+    lB = lenB = length(b)
+    if lenB == 1
+        return coeff(b, 0)^(lA - 1)
+    end
+    c1 = content(a)
+    c2 = content(b)
+    A = divexact(a, c1)
+    B = divexact(b, c2)
+    s = one(R)
+    while lenB > crossover / 2 + 1
+        shift = max(lenA - crossover, 0)
+        a = shift_right(A, shift)
+        b = shift_right(B, shift)
+        u1, v1 = one(R), zero(R)
+        u2, v2 = zero(R), one(R)
+        lena = lenA - shift
+        lenb = lenB - shift
+        if lenb > crossover / 2 + 1
+            A = truncate(A, shift)
+            B = truncate(B, shift)
+            while lenb > crossover / 2 + 1
+                if iseven(lena + shift) && iseven(lenb + shift)
+                    sgn = -sgn
+                end
+                (q, b), a = divrem(a, b), b
+                u1, u2 = u2, u1 - q * u2
+                v1, v2 = v2, v1 - q * v2
+                s *= leading_coefficient(a)^(lena - length(b))
+                lena = lenb
+                lenb = length(b)
             end
-            (q, b), a = divrem(a, b), b
-            u1, u2 = u2, u1 - q*u2
-            v1, v2 = v2, v1 - q*v2
-            s *= leading_coefficient(a)^(lena - length(b))
-            lena = lenb
-            lenb = length(b)
-         end
-         A, B = u1*A + v1*B + shift_left(a, shift), u2*A + v2*B + shift_left(b, shift)
-      else
-         if iseven(lenA) && iseven(lenB)
-               sgn = -sgn
-         end
-         B, A = mod(A, B), B
-         s *= leading_coefficient(A)^(lenA - length(B))
-      end
-      lenA = length(A)
-      lenB = length(B)
-      if lenB == 0
-         return zero(base_ring(a)), one(parent(A)), one(parent(A))
-      end
-   end
-   while lenB > 1
-      if iseven(lenA) && iseven(lenB)
-         sgn = -sgn
-      end
-      B, A = mod(A, B), B
-      s *= leading_coefficient(A)^(lenA - length(B))
-      lenA = lenB
-      lenB = length(B)
-      if lenB == 0
-         return zero(base_ring(A))
-      end
-   end
-   s *= leading_coefficient(B)^(lenA - 1)
-   return c1^(lB - 1)*c2^(lA - 1)*s*sgn
+            A, B = u1 * A + v1 * B + shift_left(a, shift), u2 * A + v2 * B + shift_left(b, shift)
+        else
+            if iseven(lenA) && iseven(lenB)
+                sgn = -sgn
+            end
+            B, A = mod(A, B), B
+            s *= leading_coefficient(A)^(lenA - length(B))
+        end
+        lenA = length(A)
+        lenB = length(B)
+        if lenB == 0
+            return zero(base_ring(a)), one(parent(A)), one(parent(A))
+        end
+    end
+    while lenB > 1
+        if iseven(lenA) && iseven(lenB)
+            sgn = -sgn
+        end
+        B, A = mod(A, B), B
+        s *= leading_coefficient(A)^(lenA - length(B))
+        lenA = lenB
+        lenB = length(B)
+        if lenB == 0
+            return zero(base_ring(A))
+        end
+    end
+    s *= leading_coefficient(B)^(lenA - 1)
+    return c1^(lB - 1) * c2^(lA - 1) * s * sgn
 end
 
 @doc Markdown.doc"""
