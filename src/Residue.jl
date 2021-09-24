@@ -131,13 +131,7 @@ function expressify(a::ResElem; context = nothing)
    return expressify(data(a), context = context)
 end
 
-function show(io::IO, ::MIME"text/plain", a::ResElem)
-  print(io, obj_to_string(a, context = io))
-end
-
-function show(io::IO, a::ResElem)
-  print(io, obj_to_string(a, context = io))
-end
+@enable_all_show_via_expressify ResElem
 
 function show(io::IO, a::ResRing)
    print(IOContext(io, :compact => true), "Residue ring of ", base_ring(a), " modulo ", modulus(a))
@@ -211,7 +205,12 @@ end
 ###############################################################################
 
 function ^(a::ResElem, b::Int)
-   parent(a)(powermod(data(a), b, modulus(a)))
+   if b < 0
+      # powermod throws a DivideError when it should throw an NotInvertibleError
+      parent(a)(powermod(data(inv(a)), -b, modulus(a)))
+   else
+      parent(a)(powermod(data(a), b, modulus(a)))
+   end
 end
 
 ###############################################################################
@@ -307,9 +306,7 @@ inverse is encountered, an exception is raised.
 """
 function Base.inv(a::ResElem)
    g, ainv = gcdinv(data(a), modulus(a))
-   if g != 1
-      error("Impossible inverse in inv")
-   end
+   isone(g) || throw(NotInvertibleError(a))
    return parent(a)(ainv)
 end
 

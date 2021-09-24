@@ -208,7 +208,7 @@ function test_Ring_interface(R::AbstractAlgebra.Ring; reps = 50)
             b = test_elem(R)::T
             A = deepcopy(a)
             B = deepcopy(b)
-            @test isone(inv(one(R)))
+            @test isone(AbstractAlgebra.inv(one(R)))
             @test a*b == b*a
             @test equality(a^1, a)
             @test equality(a^2, a*a)
@@ -254,6 +254,11 @@ function test_Field_interface(R::AbstractAlgebra.Field; reps = 50)
    return nothing
 end
 
+function equality_up_to_units(a, b)
+   iszero(a) && return iszero(b)
+   iszero(b) && return iszero(a)
+   return divides(a, b)[1] && divides(b, a)[1]
+end
 
 function test_EuclideanRing_interface(R::AbstractAlgebra.Ring; reps = 20)
 
@@ -271,32 +276,45 @@ function test_EuclideanRing_interface(R::AbstractAlgebra.Ring; reps = 20)
             m = one(R)
          end
 
-         @test (div(f, m), mod(f, m)) == divrem(f, m)
+         @test (AbstractAlgebra.div(f, m), mod(f, m)) == AbstractAlgebra.divrem(f, m)
          @test divides(mulmod(f, g, m) - mod(f*g, m), m)[1]
-         @test divides(powermod(f, 3, m) - mod(f^3, m), m)[1]
+
+         fi = one(R)
+         for i in 1:5
+            fi *= f
+            @test divides(fi - powermod(f, i, m), m)[1]
+            @test divides(fi - mod(f^i, m), m)[1]
+         end
 
          if isunit(gcd(f, m))
             a = invmod(f, m)
             @test divides(mulmod(a, f, m) - one(R), m)[1]
+            @test divides(powermod(f, -1, m) - a^1, m)[1]
+            @test divides(powermod(f, -2, m) - a^2, m)[1]
+            @test divides(powermod(f, -3, m) - a^3, m)[1]
          end
 
          @test divides(f*m, m) == (true, f)
          (a, b) = divides(f*m + g, m)
          @test !a || b*m == f*m + g
 
+         #TODO: enable once https://github.com/Nemocas/Nemo.jl/issues/1174
+         #@test_throws Exception remove(f, zero(R))
+         #@test_throws Exception valuation(f, zero(R))
+
          if !isunit(m) && !iszero(f)
+            n = rand(0:3)
+            f *= m^n
             (v, q) = remove(f, m)
             @test valuation(f, m) == v
+            @test v >= n
             @test q*m^v == f
             @test remove(q, m) == (0, q)
             @test valuation(q, m) == 0
          end
 
-         if iszero(f) && iszero(g)
-            @test iszero(gcd(f, g))
-         else
-            @test gcd(f, g)*lcm(f, g) == f*g
-         end
+         @test !(iszero(f) && iszero(g)) || iszero(gcd(f, g))
+         @test equality_up_to_units(gcd(f, g)*lcm(f, g), f*g)
 
          (d, s, t) = gcdx(f, g)
          @test d == gcd(f, g)

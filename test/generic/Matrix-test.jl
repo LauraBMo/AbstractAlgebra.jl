@@ -1005,6 +1005,34 @@ add_diag(M::Matrix, x) = [i != j ? M[i, j] : M[i, j] + x for (i, j) in Tuple.(Ca
       @test A * t == S(A.entries .* t)
    end
 
+   function _test_matrix_vector_prod(R, randargs...)
+      A = rand(MatrixSpace(R, 3, 2), randargs...)
+      v = elem_type(R)[rand(R, randargs...) for i in 1:2]
+      @test A*v == [A[i,1]*v[1] + A[i,2]*v[2] for i in 1:nrows(A)]
+      v = elem_type(R)[rand(R, randargs...) for i in 1:3]
+      @test v*A == [v[1]*A[1,i] + v[2]*A[2,i] + v[3]*A[3,i] for i in 1:ncols(A)]
+
+      A = rand(MatrixAlgebra(R, 2), randargs...)
+      v = elem_type(R)[rand(R, randargs...) for i in 1:2]
+      @test A*v == [A[i,1]*v[1] + A[i,2]*v[2] for i in 1:nrows(A)]
+      v = elem_type(R)[rand(R, randargs...) for i in 1:2]
+      @test v*A == [v[1]*A[1,i] + v[2]*A[2,i] for i in 1:ncols(A)]
+
+      A = rand(MatrixSpace(R, 0, 2), randargs...)
+      v = elem_type(R)[rand(R, randargs...) for i in 1:2]
+      @test A*v == elem_type(R)[]
+      v = elem_type(R)[]
+      @test v*A == [zero(R) for i in 1:ncols(A)]
+
+      A = rand(MatrixSpace(R, 2, 0), randargs...)
+      v = elem_type(R)[]
+      @test A*v == [zero(R) for i in 1:nrows(A)]
+      v = elem_type(R)[rand(R, randargs...) for i in 1:2]
+      @test v*A == elem_type(R)[]
+   end
+
+   _test_matrix_vector_prod(R, -1000:1000)
+
    # Exact field
    R = GF(7)
    S = MatrixSpace(R, rand(1:9), rand(1:9))
@@ -1019,6 +1047,8 @@ add_diag(M::Matrix, x) = [i != j ? M[i, j] : M[i, j] + x for (i, j) in Tuple.(Ca
       @test A * t == t * A
       @test A * t == S(A.entries .* t)
    end
+
+   _test_matrix_vector_prod(R)
 
    # Inexact ring
    R = RealField["t"][1]
@@ -1035,6 +1065,8 @@ add_diag(M::Matrix, x) = [i != j ? M[i, j] : M[i, j] + x for (i, j) in Tuple.(Ca
       @test A * t == S(A.entries .* t)
    end
 
+   _test_matrix_vector_prod(R, -1:200, -1000:1000)
+
    # Inexact field
    R = RealField
    S = MatrixSpace(R, rand(1:9), rand(1:9))
@@ -1049,6 +1081,8 @@ add_diag(M::Matrix, x) = [i != j ? M[i, j] : M[i, j] + x for (i, j) in Tuple.(Ca
       @test A * t == t * A
       @test A * t == S(A.entries .* t)
    end
+
+   _test_matrix_vector_prod(R, -1000:1000)
 
    # Non-integral domain
    R = ResidueRing(ZZ, 6)
@@ -1065,6 +1099,8 @@ add_diag(M::Matrix, x) = [i != j ? M[i, j] : M[i, j] + x for (i, j) in Tuple.(Ca
       @test A * t == S(A.entries .* t)
    end
 
+   _test_matrix_vector_prod(R, 0:5)
+
    # Fraction field
    R = QQ
    S = MatrixSpace(R, rand(1:9), rand(1:9))
@@ -1079,6 +1115,8 @@ add_diag(M::Matrix, x) = [i != j ? M[i, j] : M[i, j] + x for (i, j) in Tuple.(Ca
       @test A * t == t * A
       @test A * t == S(A.entries .* t)
    end
+
+   _test_matrix_vector_prod(R, -1000:1000)
 end
 
 @testset "Generic.Mat.promotion" begin
@@ -2563,6 +2601,62 @@ end
       @test n == 5 - i
       @test rank(N) == n
       @test iszero(N*M)
+   end
+end
+
+@testset "Generic.Mat.can_solve_with_kernel" begin
+   # Exact Ring, Exact field
+
+   for F in [ZZ, QQ]
+      for iters = 1:1000
+         m = rand(0:10)
+         n = rand(0:10)
+         k = rand(0:10)
+
+         R = MatrixSpace(F, m, n)
+         S = MatrixSpace(F, m, k)
+         U = MatrixSpace(F, n, k)
+
+         # random with solution
+         r = rand(0:min(m, n))
+         M = randmat_with_rank(R, r, -20:20)
+         X = rand(U, -20:20)
+
+         B = M*X
+
+         flag, Sol, K = can_solve_with_kernel(M, B)
+
+         @test iszero(M*K)
+         @test flag && M*Sol == B
+
+         # fully random
+         B = rand(S, -20:20)
+
+         flag, Sol, K = can_solve_with_kernel(M, B)
+         flag2, Sol2 = can_solve_with_solution(M, B)
+    
+         @test flag == flag2
+         if flag
+            @test M*Sol == B
+            @test iszero(M*K)
+
+            rk, N = kernel(M)
+            @test nrows(N) == nrows(K)
+            @test rk == ncols(K)
+         end
+
+         # left kernel, random with solution
+         r = rand(0:min(n, k))
+         M = randmat_with_rank(U, r, -20:20)
+         X = rand(R, -20:20)
+
+         B = X*M
+
+         flag, Sol, K = can_solve_with_kernel(M, B; side=:left)
+
+         @test iszero(K*M)
+         @test flag && Sol*M == B
+      end
    end
 end
 

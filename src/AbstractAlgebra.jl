@@ -137,15 +137,9 @@ export ZZ, QQ, zz, qq, RealField, RDF
 export create_accessors, get_handle, package_handle, zeros,
        Array, sig_exists
 
-export error_dim_negative, ErrorConstrDimMismatch
+export NotInvertibleError, error_dim_negative, ErrorConstrDimMismatch
 
-export crt, factor, factor_squarefree
-
-function expressify
-end
-
-function show_via_expressify
-end
+export crt, factor, factor_squarefree, isirreducible, issquarefree
 
 ###############################################################################
 # Macros for fancy printing and extending objects when desired
@@ -369,6 +363,24 @@ include("julia/JuliaTypes.jl")
 
 include("fundamental_interface.jl")
 
+################################################################################
+#
+#   Printing
+#
+################################################################################
+
+include("PrettyPrinting.jl")
+
+import .PrettyPrinting: get_html_as_latex, set_html_as_latex, expressify,
+                        show_via_expressify, @enable_all_show_via_expressify,
+                        expr_to_string, expr_to_latex_string, canonicalize,
+                        printer, print_integer_string, get_syntactic_sign_abs,
+                        is_syntactic_one, is_syntactic_zero,
+                        obj_to_string, obj_to_string_wrt_times,
+                        obj_to_latex_string, show_obj, print_obj
+
+export @enable_all_show_via_expressify
+
 ###############################################################################
 #
 #   Generic algorithms defined on abstract types
@@ -440,7 +452,7 @@ import .Generic: abs_series, abs_series_type,
                  inverse_fn, inverse_image_fn,
                  inverse_mat, reverse_rows, reverse_rows!,
                  inv!, invmod,
-                 iscompatible, isdegree,
+                 iscompatible, isdegree, isdivisible_by,
                  ishomogeneous, isisomorphic,
                  isone, isreverse, isrimhook, issubmodule,
                  isunit,
@@ -497,7 +509,7 @@ export abs_series, abs_series_type,
                  interpolate,
                  inv!, inverse_image_fn,
                  inverse_mat, invmod,
-                 iscompatible, isdegree,
+                 iscompatible, isdegree, isdivisible_by,
                  isdomain_type, isexact_type, isgen,
                  ishomogeneous,
                  isisomorphic, ismonomial, ismonomial_recursive,
@@ -645,14 +657,6 @@ include("error.jl")
 ###############################################################################
 
 include("Groups.jl")
-
-################################################################################
-#
-#   Printing
-#
-################################################################################
-
-include("PrettyPrinting.jl")
 
 ################################################################################
 #

@@ -756,11 +756,12 @@ using RandomExtensions: RandomExtensions, Make2, AbstractRNG
 
 import AbstractAlgebra: parent_type, elem_type, base_ring, parent, isdomain_type,
        isexact_type, canonical_unit, isequal, divexact, zero!, mul!, add!, addeq!,
-       get_cached!, isunit, characteristic, Ring, RingElem
+       get_cached!, isunit, characteristic, Ring, RingElem, expressify
 
-import Base: show, +, -, *, ^, ==, inv, isone, iszero, one, zero
+import Base: show, +, -, *, ^, ==, inv, isone, iszero, one, zero, rand,
+             deepcopy_internal, hash
 
-struct ConstPolyRing{T <: RingElement}
+struct ConstPolyRing{T <: RingElement} <: Ring
    base_ring::Ring
 
    function ConstPolyRing{T}(R::Ring, cached::Bool) where T <: RingElement
@@ -795,14 +796,15 @@ isdomain_type(::Type{ConstPoly{T}}) where T <: RingElement = isdomain_type(T)
 
 isexact_type(::Type{ConstPoly{T}}) where T <: RingElement = isexact_type(T)
 
-function Base.hash(f::ConstPoly, h::UInt)
+function hash(f::ConstPoly, h::UInt)
    r = 0x65125ab8e0cd44ca
    return xor(r, hash(f.c, h))
 end
 
-function deepcopy_internal(f::ConstPoly)
-   r = ConstPoly(f.c)
+function deepcopy_internal(f::ConstPoly{T}, d::IdDict) where T <: RingElement
+   r = ConstPoly{T}(deepcopy_internal(f.c, d))
    r.parent = f.parent # parent should not be deepcopied
+   return r
 end
 
 # Basic manipulation
@@ -832,6 +834,17 @@ end
 
 function show(io::IO, f::ConstPoly)
    print(io, f.c)
+end
+
+# Expressification (optional)
+
+function expressify(R::ConstPolyRing; context = nothing)
+   return Expr(:sequence, Expr(:text, "Constant polynomials over "),
+                          expressify(base_ring(R), context = context))
+end
+
+function expressify(f::ConstPoly; context = nothing)
+   return expressify(f.c, context = context)
 end
 
 # Unary operations
@@ -873,20 +886,14 @@ function isequal(f::ConstPoly{T}, g::ConstPoly{T}) where T <: RingElement
    return isequal(f.c, g.c)
 end
 
-# Powering
-
-function ^(f::ConstPoly, e::Int)
-   e < 0 && throw(DomainError(e, "exponent must be nonnegative"))
-   R = parent(f)
-   return R(f.c^e)
-end
+# Powering need not be implemented if * is
 
 # Exact division
 
-function divexact(f::ConstPoly{T}, g::ConstPoly{T}) where T <: RingElement
+function divexact(f::ConstPoly{T}, g::ConstPoly{T}; check::Bool = true) where T <: RingElement
    parent(f) != parent(g) && error("Incompatible rings")
    R = parent(f)
-   return R(divexact(f.c, g.c))
+   return R(divexact(f.c, g.c, check = check))
 end
 
 # Inverse
@@ -899,7 +906,7 @@ end
 # Unsafe operators
 
 function zero!(f::ConstPoly)
-   f.c = 0
+   f.c = zero(base_ring(parent(f)))
    return f
 end
 
@@ -976,4 +983,19 @@ function ConstantPolynomialRing(R::Ring, cached::Bool=true)
    T = elem_type(R)
    return ConstPolyRing{T}(R, cached)
 end
+```
+
+The above implementation of `ConstantPolynomialRing` may be tested as follows.
+
+```julia
+using Test
+include(joinpath(pathof(AbstractAlgebra), "..", "..", "test", "Rings-conformance-tests.jl"))
+
+S, _ = PolynomialRing(QQ, "x")
+
+function test_elem(R::ConstPolyRing{elem_type(S)})
+   return R(rand(base_ring(R), 1:6, -999:999))
+end
+
+test_Ring_interface(ConstantPolynomialRing(S))
 ```
