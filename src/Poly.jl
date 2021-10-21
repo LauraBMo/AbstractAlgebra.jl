@@ -2201,7 +2201,6 @@ function resultant_ducos(p::PolyElem{T}, q::PolyElem{T}) where T <: RingElement
     # Ducos, J. Pure and Appl. Algebra 2000.
     check_parent(p, q)
     if length(p) == 0 || length(q) == 0
-        @debug "Exit by lp or lq == 0 at iteration\n"
         return zero(base_ring(p))
     end
     sgn = 1
@@ -2214,7 +2213,6 @@ function resultant_ducos(p::PolyElem{T}, q::PolyElem{T}) where T <: RingElement
     lp = length(p)
     lq = length(q)
     if lq == 1
-        @debug "Exit by lq == 1 (with lq <= lp) at iteration\n"
         return coeff(q, 0)^(lp - 1)
     end
     c1 = content(p)
@@ -2229,7 +2227,6 @@ function resultant_ducos(p::PolyElem{T}, q::PolyElem{T}) where T <: RingElement
         d1 = length(A)
         e1 = length(B)
         if e1 == 0
-            @debug "Exit by e1 == 0 at iteration\n"
             return zero(base_ring(p))
         end
         Sd1 = B
@@ -2244,7 +2241,6 @@ function resultant_ducos(p::PolyElem{T}, q::PolyElem{T}) where T <: RingElement
             C = B
         end
         if e1 == 1
-            @debug "Exit by e1 == 1 at iteration\n"
             return coeff(C, 0) * c1^(lq - 1) * c2^(lp - 1) * sgn
         end
         B = subresultant_ducos(A, Sd1, C, sd)
@@ -2255,24 +2251,10 @@ function resultant_ducos(p::PolyElem{T}, q::PolyElem{T}) where T <: RingElement
     end
 end
 
-function setpoly_resultant(p, q)
-    @debug "Let's start setting the polys"
-    check_parent(p, q)
-    sgn = 1
-    if length(p) < length(q)
-        p, q = q, p # Ensure deg(q) < deg(p)
-        if iseven(length(p)) && iseven(length(q))
-            sgn = -sgn
-        end
-    end
-    return length(p), length(q), sgn
-end
-
-
 @doc Markdown.doc"""
     subresultants_ducos(p::PolyElem{T}, q::PolyElem{T}) where T <: RingElement
 
-Same as `resultant_ducos` but returns the whole chain of subresultants of $p$ and $q$.
+Same as `resultant_ducos` but returns the chain of subresultants of $p$ and $q$.
 """
 function subresultants_ducos(p, q)
     # See the paper, "Optimizations of the subresultant algorithm" by Lionel
@@ -2301,9 +2283,9 @@ function subresultants_ducos(p, q)
     c1 = content(p)
     c2 = content(q)
     @debug "Contents p,q: $(c1), $(c2)"
+    # # Do not normalize
     # B = divexact(p, c1)
     # A = divexact(q, c2)
-    # # Do not normalize
     B = p
     A = q
     @debug "Polys A,B: $(A), $(B)"
